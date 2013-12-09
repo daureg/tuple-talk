@@ -1,19 +1,99 @@
 package tuplespaces;
 
+import java.util.Iterator;
+import java.util.Vector;
+
 public class LocalTupleSpace implements TupleSpace {
-	// Add stuff here.
-	
+	private final Vector<String[]> tuples;
+	private final Vector<int[]> hashes;
+
+	public LocalTupleSpace() {
+		tuples = new Vector<String[]>(100, 100);
+		hashes = new Vector<int[]>(100, 100);
+	}
+
+	public String[] find(boolean remove, String... pattern) {
+		String[] matched = null;
+		int[] hash = new int[pattern.length];
+		for (int i = 0; i < pattern.length; i++) {
+			hash[i] = pattern[i] == null ? -1
+					: (pattern[i].hashCode() & 0x7FFFFFFF);
+		}
+		synchronized (tuples) {
+			do {
+				Iterator<int[]> it_hash = hashes.iterator();
+				for (Iterator<String[]> it_tuple = tuples.iterator(); it_tuple
+						.hasNext();) {
+					String[] tuple = (String[]) it_tuple.next();
+					int[] tuple_hash = (int[]) it_hash.next();
+					if (match(tuple_hash, hash)) {
+						// if (matchStr(tuple, pattern)) {
+						// TODO: avoid collision
+						matched = tuple.clone();
+						if (remove) {
+							it_tuple.remove();
+							it_hash.remove();
+						}
+						break;
+					}
+				}
+				try {
+					if (matched == null)
+						tuples.wait();
+				} catch (InterruptedException e) {
+					// Restore the interrupted status
+					// http://www.ibm.com/developerworks/java/library/j-jtp05236/
+					Thread.currentThread().interrupt();
+					e.printStackTrace();
+				}
+			} while (matched == null);
+		}
+		return matched;
+	}
+
+	private boolean matchStr(String[] tuple, String[] pattern) {
+		if (tuple.length != pattern.length) {
+			return false;
+		}
+		for (int i = 0; i < pattern.length; i++) {
+			if (pattern[i] != null && pattern[i].compareTo(tuple[i]) != 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private boolean match(int[] tuple, int[] pattern) {
+		if (tuple.length != pattern.length) {
+			return false;
+		}
+		for (int i = 0; i < pattern.length; i++) {
+			if (pattern[i] >= 0 && pattern[i] != tuple[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public String[] get(String... pattern) {
-		throw new UnsupportedOperationException();
-		// TODO: Implement LocalTupleSpace.get(String...).
+		return find(true, pattern);
 	}
 
 	public String[] read(String... pattern) {
-		throw new UnsupportedOperationException(); // Implement this.
-		// TODO: Implement LocalTupleSpace.read(String...).
+		return find(false, pattern);
 	}
 
 	public void put(String... tuple) {
-		// TODO: Implement LocalTupleSpace.put(String...).
+		synchronized (tuples) {
+			int[] hash = new int[tuple.length];
+			for (int i = 0; i < tuple.length; i++) {
+				hash[i] = tuple[i] == null ? -1
+						: (tuple[i].hashCode() & 0x7FFFFFFF);
+			}
+			tuples.add(tuple.clone());
+			hashes.add(hash.clone());
+			hash = null;
+			tuples.notifyAll();
+		}
 	}
 }
