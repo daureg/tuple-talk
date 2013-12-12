@@ -1,15 +1,15 @@
 package tuplespaces;
 
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Vector;
 
 public class LocalTupleSpace implements TupleSpace {
-	private final Vector<String[]> tuples;
-	private final Vector<int[]> hashes;
+	private final ArrayList<String[]> tuples;
+	private final ArrayList<int[]> hashes;
 
 	public LocalTupleSpace() {
-		tuples = new Vector<String[]>(100, 100);
-		hashes = new Vector<int[]>(100, 100);
+		tuples = new ArrayList<String[]>(100);
+		hashes = new ArrayList<int[]>(100);
 	}
 
 	public String[] find(boolean remove, String... pattern) {
@@ -26,9 +26,9 @@ public class LocalTupleSpace implements TupleSpace {
 						.hasNext();) {
 					String[] tuple = (String[]) it_tuple.next();
 					int[] tuple_hash = (int[]) it_hash.next();
-					if (match(tuple_hash, hash)) {
+//					if (match(tuple_hash, hash)) {
+					if (match(tuple_hash, hash) && matchStr(tuple, pattern)) {
 						// if (matchStr(tuple, pattern)) {
-						// TODO: avoid collision
 						matched = tuple.clone();
 						if (remove) {
 							it_tuple.remove();
@@ -44,7 +44,7 @@ public class LocalTupleSpace implements TupleSpace {
 					// Restore the interrupted status
 					// http://www.ibm.com/developerworks/java/library/j-jtp05236/
 					Thread.currentThread().interrupt();
-					e.printStackTrace();
+//					e.printStackTrace();
 				}
 			} while (matched == null);
 		}
