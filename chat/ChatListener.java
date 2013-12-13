@@ -4,7 +4,6 @@ import tuplespaces.TupleSpace;
 
 public class ChatListener {
 	private int lastRead;
-	private int newestSeen;
 	private boolean stillListening;
 	private final int rows;
 	private final int myID;
@@ -16,7 +15,6 @@ public class ChatListener {
 		this.t = t;
 		String[] state = t.get(new String[] { "state", null, null });
 		lastRead = -1;
-		newestSeen = 0;
 		stillListening = true;
 		rows = Integer.parseInt(state[1]);
 		// TODO: don't need id (except for debug)
@@ -43,43 +41,24 @@ public class ChatListener {
 		String[] request = new String[] { channel, null, null, "true", null,
 				null };
 		/*
-		 * here i could read state to get a more recent value of newestSeen, but
-		 * still, if more than two msg are posted before I go to the next get,
-		 * I'm stuck forever (I would to wait on a lastW > lastRead condition
-		 * but it would have to be individual for every listeners. => write msg
-		 * could post (channel_notification, listener_id, new_msg_id) and I
-		 * could wait on that one alone. Then i could wait to get the channel
-		 * and be sure that there is something for me. Or just read the correct
-		 * msg directly. Actually it would be great to get the channelState the
-		 * possible. The nice thing about tuple tailored to each listener is
-		 * that it would be a good way to tell them to stop listening. A hack
-		 * could be to post a message with the desired id but an invalid readBy
-		 * (not very good because it's hard to ignore for other listeners. Maybe
-		 * I could add a 'fake' last field in message (exactly the same)
+		 * individual for every listeners. => write msg could post
+		 * (channel_notification, listener_id, new_msg_id) The nice thing about
+		 * tuple tailored to each listener is that it would be a good way to
+		 * tell them to stop listening. A hack could be to post a message with
+		 * the desired id but an invalid readBy (not very good because it's hard
+		 * to ignore for other listeners. Maybe I could add a 'fake' last field
+		 * in message (exactly the same)
 		 */
-		if (lastRead == newestSeen) {
-			System.out
-					.format("last time, listener %d has read msg %d out '%s' and the more recent she saw was %d so waiting for a new one %d\n",
-							myID, lastRead, channel, newestSeen, lastRead + 1);
-			// System.out.format("a old one could be: ");
-			// String[] omsg = t.read(new String[] { channel + "_msg", "2",
-			// null,
-			// null });
-			// System.out.format("(%d, '%s'), read by %s\n", 2, omsg[2],
-			// omsg[3]);
-			/* if we are already up to date, we wait until a new message appear */
-			request[4] = String.valueOf(lastRead + 1);
-		}
-		/* TODO: when we close connection, find a way to stop this call */
-		String[] channelState = t.get(request);
+		/* TODO: when we close connection, find a way to stop get calls */
 		System.out.format(
 				"listener %d want to read something from channel '%s':\n",
 				myID, channel);
-		final int lastWrittenId = Integer.parseInt(channelState[4]);
-		newestSeen = lastWrittenId; // equivalent to newestSeen++
-		int oldestId = Integer.parseInt(channelState[5]);
-		if (lastRead == -1)
-			lastRead = oldestId - 1;
+		String[] channelState = new String[6];
+		if (lastRead == -1) {
+			channelState = t.get(request);
+			lastRead = Integer.parseInt(channelState[5]) - 1;
+			t.put(channelState);
+		}
 		final int msgId = lastRead + 1;
 		String[] msgInfo = t.get(new String[] { channel + "_msg",
 				String.valueOf(msgId), null, null });
@@ -92,7 +71,10 @@ public class ChatListener {
 		unreadCount--;
 		msgInfo[3] = String.valueOf(unreadCount);
 		if (unreadCount <= 0) {
-			boolean notFull = Boolean.valueOf(channelState[2]);
+			channelState = t.get(request);
+			int oldestId = Integer.parseInt(channelState[5]);
+			final int lastWrittenId = Integer.parseInt(channelState[4]);
+			final boolean notFull = Boolean.valueOf(channelState[2]);
 			System.out.format(
 					"everybody has read %d but is channel '%s' full: %b	\n",
 					msgId, channel, !notFull);
@@ -152,11 +134,9 @@ public class ChatListener {
 				channelState[5] = String.valueOf(oldestId);
 				t.put(channelState);
 			}
-
 		} else {
 			/* Not much has changed, except that myId has read this msg. */
 			t.put(msgInfo);
-			t.put(channelState);
 		}
 		lastRead = msgId;
 		System.out.format(
