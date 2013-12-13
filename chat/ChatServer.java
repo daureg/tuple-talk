@@ -1,7 +1,5 @@
 package chat;
 
-import java.util.HashSet;
-
 import tuplespaces.TupleSpace;
 
 public class ChatServer {
@@ -22,8 +20,8 @@ public class ChatServer {
 		System.arraycopy(channelNames, 0, this.channelNames, 0, numChannel);
 		t.put(channelsInfo);
 		for (int i = 0; i < numChannel; i++) {
-			t.put(new String[] { channelNames[i], "", "true", "false", "0", "1" });
-			t.put(new String[] { channelNames[i] + "_msg", "0", "", "" });
+			t.put(new String[] { channelNames[i], "0", "true", "false", "0",
+					"1" });
 		}
 	}
 
@@ -62,7 +60,7 @@ public class ChatServer {
 		final int oldestId = Integer.parseInt(channelState[5]);
 		lastWrittenId++;
 		t.put(new String[] { channel + "_msg", String.valueOf(lastWrittenId),
-				message, "" });
+				message, channelState[1] });
 		channelState[2] = String.valueOf(lastWrittenId - oldestId + 1 < rows);
 		channelState[3] = "true";
 		channelState[4] = String.valueOf(lastWrittenId);
@@ -70,8 +68,6 @@ public class ChatServer {
 		System.out.format("%d:Wrote (%d, '%s') to channel '%s':\n",
 				System.nanoTime(), lastWrittenId, message, channel);
 		channelState(channelState);
-		// System.out.format("Full: %b and notFull: %s\n", lastWrittenId
-		// - oldestId + 1 == rows, channelState[2]);
 	}
 
 	public ChatListener openConnection(String channel) {
@@ -79,9 +75,9 @@ public class ChatServer {
 	}
 
 	public static void channelState(String[] s) {
-		System.out.format(
-				"'%s': notFull: %s\tnotEmpty: %s\t msg from %s to %s\t%s\n",
-				s[0], s[2], s[3], s[5], s[4], s[1]);
+		System.out
+				.format("'%s': notFull: %s\tnotEmpty: %s\t msg from %s to %s\tlisten by: %s\n",
+						s[0], s[2], s[3], s[5], s[4], s[1]);
 	}
 
 	/**
@@ -90,44 +86,30 @@ public class ChatServer {
 	 * @param channelState
 	 * @return true if it has removed something and modify channelState in place
 	 */
-	// public static boolean tryToRemoveOldestMessage(TupleSpace t, int rows,
-	// String channel) {
 	public static boolean tryToRemoveOldestMessage(TupleSpace t, int rows,
 			String[] channelState) {
-		// boolean removed = false;
-		// String[] channelState = t.get(new String[] { channel, null, null,
-		// null,
-		// null, null });
-		Boolean notFull = Boolean.valueOf(channelState[2]);
-		Boolean empty = !Boolean.valueOf(channelState[3]);
+		boolean notFull = Boolean.valueOf(channelState[2]);
+		boolean empty = !Boolean.valueOf(channelState[3]);
 		if (notFull || empty) {
-			// t.put(channelState);
 			return false;
 		}
 		final String channel = channelState[0];
 		final int lastWrittenId = Integer.parseInt(channelState[4]);
 		int oldestId = Integer.parseInt(channelState[5]);
 		System.out.println("try to remove " + oldestId);
-		final HashSet<Integer> listeners = ChatListener
-				.stringListToIntSet(channelState[1]);
 		final String[] msgInfo = t.get(new String[] { channel + "_msg",
 				String.valueOf(oldestId), null, null });
-		final HashSet<Integer> readBy = ChatListener
-				.stringListToIntSet(msgInfo[3]);
-		System.out.println("which have been read by " + msgInfo[3]);
-		if (!readBy.containsAll(listeners)) {
+		final int unreadCount = Integer.valueOf(msgInfo[3]);
+		System.out.println("which have not been read by " + msgInfo[3]);
+		if (unreadCount > 0) {
 			t.put(msgInfo);
 			return false;
 		}
-		// else {
-		// removed = true;
 		System.out.println("A writer removed msg id: " + oldestId);
 		oldestId++;
-		// }
 		channelState[2] = String.valueOf(lastWrittenId - oldestId + 1 < rows);
 		channelState[3] = String.valueOf(lastWrittenId >= oldestId);
 		channelState[5] = String.valueOf(oldestId);
-		// t.put(channelState);
 		return true;
 	}
 }

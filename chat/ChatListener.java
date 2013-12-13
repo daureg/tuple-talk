@@ -1,7 +1,5 @@
 package chat;
 
-import java.util.HashSet;
-
 import tuplespaces.TupleSpace;
 
 public class ChatListener {
@@ -21,12 +19,21 @@ public class ChatListener {
 		newestSeen = 0;
 		stillListening = true;
 		rows = Integer.parseInt(state[1]);
+		// TODO: don't need id (except for debug)
 		myID = Integer.parseInt(state[2]);
 		state[2] = String.valueOf(myID + 1);
 		t.put(state);
 		String[] channelState = t.get(new String[] { channel, null, null, null,
 				null, null });
-		channelState[1] += String.valueOf(myID) + ";";
+		final int lastWrittenId = Integer.parseInt(channelState[4]);
+		final int oldestId = Integer.parseInt(channelState[5]);
+		for (int i = oldestId; i <= lastWrittenId; i++) {
+			String[] msgInfo = t.get(new String[] { channel + "_msg",
+					String.valueOf(i), null, null });
+			msgInfo[3] = String.valueOf(Integer.valueOf(msgInfo[3]) + 1);
+			t.put(msgInfo);
+		}
+		channelState[1] = String.valueOf(Integer.valueOf(channelState[1]) + 1);
 		System.out.format("%d is now listening to '%s':\n", myID, channel);
 		// ChatServer.channelState(channelState);
 		t.put(channelState);
@@ -74,7 +81,6 @@ public class ChatListener {
 		if (lastRead == -1)
 			lastRead = oldestId - 1;
 		final int msgId = lastRead + 1;
-		HashSet<Integer> listeners = stringListToIntSet(channelState[1]);
 		String[] msgInfo = t.get(new String[] { channel + "_msg",
 				String.valueOf(msgId), null, null });
 		if (!stillListening) {
@@ -82,10 +88,10 @@ public class ChatListener {
 			return "";
 		}
 		String msg = msgInfo[2];
-		HashSet<Integer> readBy = stringListToIntSet(msgInfo[3]);
-		readBy.add(myID);
-		msgInfo[3] = intSetToStringList(readBy);
-		if (readBy.containsAll(listeners)) {
+		int unreadCount = Integer.valueOf(msgInfo[3]);
+		unreadCount--;
+		msgInfo[3] = String.valueOf(unreadCount);
+		if (unreadCount <= 0) {
 			boolean notFull = Boolean.valueOf(channelState[2]);
 			System.out.format(
 					"everybody has read %d but is channel '%s' full: %b	\n",
@@ -119,8 +125,8 @@ public class ChatListener {
 					// get the oldest one
 					msgInfo = t.get(new String[] { channel + "_msg",
 							String.valueOf(oldestId), null, null });
-					readBy = stringListToIntSet(msgInfo[3]);
-					if (!readBy.containsAll(listeners)) {
+					unreadCount = Integer.valueOf(msgInfo[3]);
+					if (unreadCount > 0) {
 						/*
 						 * if not every listeners has read it, we put it back
 						 * (so should we just t.read instead?)
@@ -159,30 +165,6 @@ public class ChatListener {
 		return msg;
 	}
 
-	public static HashSet<Integer> stringListToIntSet(String list) {
-		if (list.length() == 0)
-			return new HashSet<Integer>(0);
-		String[] tmp = list.split(";");
-		HashSet<Integer> set = new HashSet<Integer>(tmp.length);
-		for (String id : tmp) {
-			set.add(Integer.valueOf(id));
-		}
-		return set;
-	}
-
-	public static String intSetToStringList(HashSet<Integer> set) {
-		StringBuilder sb = new StringBuilder();
-		boolean first = true;
-		for (Integer id : set) {
-			if (first)
-				first = false;
-			else
-				sb.append(";");
-			sb.append(String.valueOf(id));
-		}
-		return sb.toString();
-	}
-
 	public void closeConnection() {
 		stillListening = false;
 		/*
@@ -193,23 +175,22 @@ public class ChatListener {
 		 */
 		String[] channelState = t.get(new String[] { channel, null, null, null,
 				null, null });
-		channelState[1] = removeMeFromListeners(channelState[1]);
-		t.put(channelState);
-	}
-
-	// Come'on JDK! http://stackoverflow.com/q/1751844
-	private String removeMeFromListeners(String list) {
-		String[] listeners = list.split(";");
-		StringBuilder sb = new StringBuilder();
-		boolean first = true;
-		for (String item : listeners) {
-			if (first)
-				first = false;
-			else
-				sb.append(";");
-			if (Integer.parseInt(item) != myID)
-				sb.append(item);
+		final int lastWrittenId = Integer.parseInt(channelState[4]);
+		for (int i = lastRead + 1; i <= lastWrittenId; i++) {
+			/*
+			 * TODO: maybe I'll decrement lastRead+1 twice if getNextMessage
+			 * just did it but didn't yet update lastRead (at worst one listener
+			 * will miss one message)
+			 */
+			String[] msgInfo = t.get(new String[] { channel + "_msg",
+					String.valueOf(i), null, null });
+			msgInfo[3] = String.valueOf(Integer.valueOf(msgInfo[3]) - 1);
+			t.put(msgInfo);
 		}
-		return sb.toString();
+		System.out.format("listener %d is leaving '%s' after reading %d\n",
+				myID, channel, lastRead);
+		channelState[1] = String.valueOf(Integer.valueOf(channelState[1]) - 1);
+		ChatServer.channelState(channelState);
+		t.put(channelState);
 	}
 }
