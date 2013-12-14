@@ -14,7 +14,7 @@ public class ChatListener {
 	public ChatListener(TupleSpace t, String channel) {
 		this.channel = channel;
 		this.t = t;
-		String[] state = t.get(new String[] { "state", null, null });
+		String[] state = t.get("state", null, null);
 		lastRead = -1;
 		stillListening = true;
 		rows = Integer.parseInt(state[1]);
@@ -22,13 +22,12 @@ public class ChatListener {
 		myID = Integer.parseInt(state[2]);
 		state[2] = String.valueOf(myID + 1);
 		t.put(state);
-		String[] channelState = t.get(new String[] { channel, null, null, null,
-				null, null });
+		String[] channelState = t.get(channel, null, null, null, null, null);
 		final int lastWrittenId = Integer.parseInt(channelState[4]);
 		final int oldestId = Integer.parseInt(channelState[5]);
 		for (int i = oldestId; i <= lastWrittenId; i++) {
-			String[] msgInfo = t.get(new String[] { channel + "_msg",
-					String.valueOf(i), null, null });
+			String[] msgInfo = t.get(channel + "_msg", String.valueOf(i), null,
+					null);
 			msgInfo[3] = String.valueOf(Integer.valueOf(msgInfo[3]) + 1);
 			t.put(msgInfo);
 		}
@@ -62,8 +61,8 @@ public class ChatListener {
 			t.put(channelState);
 		}
 		final int msgId = lastRead + 1;
-		String[] msgInfo = t.get(new String[] { channel + "_msg",
-				String.valueOf(msgId), null, null });
+		String[] msgInfo = t.get(channel + "_msg", String.valueOf(msgId), null,
+				null);
 		if (!stillListening) {
 			t.put(msgInfo);
 			return "";
@@ -166,8 +165,7 @@ public class ChatListener {
 		 * spec and it would use one message out the row available in the buffer
 		 * for nothing.
 		 */
-		String[] channelState = t.get(new String[] { channel, null, null, null,
-				null, null });
+		String[] channelState = t.get(channel, null, null, null, null, null);
 		final int lastWrittenId = Integer.parseInt(channelState[4]);
 		for (int i = lastRead + 1; i <= lastWrittenId; i++) {
 			/*
@@ -175,8 +173,8 @@ public class ChatListener {
 			 * just did it but didn't yet update lastRead (at worst one listener
 			 * will miss one message)
 			 */
-			String[] msgInfo = t.get(new String[] { channel + "_msg",
-					String.valueOf(i), null, null });
+			String[] msgInfo = t.get(channel + "_msg", String.valueOf(i), null,
+					null);
 			msgInfo[3] = String.valueOf(Integer.valueOf(msgInfo[3]) - 1);
 			t.put(msgInfo);
 		}

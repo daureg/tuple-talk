@@ -10,9 +10,9 @@ public class ChatServer {
 	public ChatServer(TupleSpace t, int rows, String[] channelNames) {
 		this.t = t;
 		this.rows = rows;
-		t.put(new String[] { "state", String.valueOf(rows), "0" });
+		t.put("state", String.valueOf(rows), "0");
 		final int numChannel = channelNames.length;
-		t.put(new String[] { "numChannel", String.valueOf(numChannel) });
+		t.put("numChannel", String.valueOf(numChannel));
 		String[] channelsInfo = new String[channelNames.length + 1];
 		channelsInfo[0] = "channelNames";
 		System.arraycopy(channelNames, 0, channelsInfo, 1, numChannel);
@@ -20,16 +20,15 @@ public class ChatServer {
 		System.arraycopy(channelNames, 0, this.channelNames, 0, numChannel);
 		t.put(channelsInfo);
 		for (int i = 0; i < numChannel; i++) {
-			t.put(new String[] { channelNames[i], "0", "true", "false", "0",
-					"1" });
+			t.put(channelNames[i], "0", "true", "false", "0", "1");
 		}
 	}
 
 	public ChatServer(TupleSpace t) {
 		this.t = t;
-		String[] state = t.read(new String[] { "state", null, null });
+		String[] state = t.read("state", null, null);
 		this.rows = Integer.parseInt(state[1]);
-		String[] tmp = t.read(new String[] { "numChannel", null });
+		String[] tmp = t.read("numChannel", null);
 		final int numChannel = Integer.parseInt(tmp[1]);
 		channelNames = new String[numChannel];
 		String[] pattern = new String[numChannel + 1];
@@ -47,23 +46,21 @@ public class ChatServer {
 	public void writeMessage(String channel, String message) {
 		System.out.format("Want to write '%s' to channel '%s'\n", message,
 				channel);
-		String[] channelState = t.get(new String[] { channel, null, null, null,
-				null, null });
+		String[] channelState = t.get(channel, null, null, null, null, null);
 		boolean full = !Boolean.valueOf(channelState[2]);
-		System.out.format("Want to write '%s' to channel '%s' and got it:\n", message,
-				channel);
+		System.out.format("Want to write '%s' to channel '%s' and got it:\n",
+				message, channel);
 		channelState(channelState);
 		if (full && !tryToRemoveOldestMessage(t, rows, channelState)) {
 			t.put(channelState);
-			channelState = t.get(new String[] { channel, null, "true", null,
-					null, null });
+			channelState = t.get(channel, null, "true", null, null, null);
 		}
 		// channelState(channelState);
 		int lastWrittenId = Integer.parseInt(channelState[4]);
 		final int oldestId = Integer.parseInt(channelState[5]);
 		lastWrittenId++;
-		t.put(new String[] { channel + "_msg", String.valueOf(lastWrittenId),
-				message, channelState[1] });
+		t.put(channel + "_msg", String.valueOf(lastWrittenId), message,
+				channelState[1]);
 		channelState[2] = String.valueOf(lastWrittenId - oldestId + 1 < rows);
 		channelState[3] = "true";
 		channelState[4] = String.valueOf(lastWrittenId);
@@ -99,9 +96,10 @@ public class ChatServer {
 		final String channel = channelState[0];
 		final int lastWrittenId = Integer.parseInt(channelState[4]);
 		int oldestId = Integer.parseInt(channelState[5]);
-		System.out.format("writer try to remove %d from '%s'\n", oldestId, channel);
-		final String[] msgInfo = t.get(new String[] { channel + "_msg",
-				String.valueOf(oldestId), null, null });
+		System.out.format("writer try to remove %d from '%s'\n", oldestId,
+				channel);
+		final String[] msgInfo = t.get(channel + "_msg",
+				String.valueOf(oldestId), null, null);
 		final int unreadCount = Integer.valueOf(msgInfo[3]);
 		System.out.println("which have not been read by " + msgInfo[3]);
 		if (unreadCount > 0) {
