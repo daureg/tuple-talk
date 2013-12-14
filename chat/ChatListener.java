@@ -9,6 +9,7 @@ public class ChatListener {
 	private final int myID;
 	private final String channel;
 	private final TupleSpace t;
+	private int totalRead;
 
 	public ChatListener(TupleSpace t, String channel) {
 		this.channel = channel;
@@ -35,6 +36,7 @@ public class ChatListener {
 		System.out.format("%d is now listening to '%s':\n", myID, channel);
 		// ChatServer.channelState(channelState);
 		t.put(channelState);
+		totalRead = 0;
 	}
 
 	public String getNextMessage() {
@@ -50,9 +52,9 @@ public class ChatListener {
 		 * in message (exactly the same)
 		 */
 		/* TODO: when we close connection, find a way to stop get calls */
-		System.out.format(
-				"listener %d want to read something from channel '%s':\n",
-				myID, channel);
+		System.out
+				.format("listener %d want to read %d from channel '%s' (after %d msg read):\n",
+						myID, lastRead + 1, channel, totalRead);
 		String[] channelState = new String[6];
 		if (lastRead == -1) {
 			channelState = t.get(request);
@@ -70,17 +72,23 @@ public class ChatListener {
 		int unreadCount = Integer.valueOf(msgInfo[3]);
 		unreadCount--;
 		msgInfo[3] = String.valueOf(unreadCount);
+		totalRead++;
+		System.out.format(
+				"listener %d just read (%d, '%s') out of channel '%s':\n",
+				myID, msgId, msg, channel);
+		t.put(msgInfo);
 		if (unreadCount <= 0) {
 			channelState = t.get(request);
 			int oldestId = Integer.parseInt(channelState[5]);
 			final int lastWrittenId = Integer.parseInt(channelState[4]);
 			final boolean notFull = Boolean.valueOf(channelState[2]);
+			final String[] oldestMsgRequest = new String[] { channel + "_msg",
+					String.valueOf(oldestId), null, null };
 			System.out.format(
 					"everybody has read %d but is channel '%s' full: %b	\n",
 					msgId, channel, !notFull);
 			if (notFull) {
 				/* Not much has changed, except that myId has read this msg. */
-				t.put(msgInfo);
 				t.put(channelState);
 			} else {
 				System.out
@@ -102,11 +110,8 @@ public class ChatListener {
 				 * So if we are full, we can remove only one at a time, right?
 				 */
 				if (msgId != oldestId) {
-					// not the oldest one so put it back just in case
-					t.put(msgInfo);
 					// get the oldest one
-					msgInfo = t.get(new String[] { channel + "_msg",
-							String.valueOf(oldestId), null, null });
+					msgInfo = t.get(oldestMsgRequest);
 					unreadCount = Integer.valueOf(msgInfo[3]);
 					if (unreadCount > 0) {
 						/*
@@ -116,12 +121,23 @@ public class ChatListener {
 						t.put(msgInfo);
 					} else {
 						/* hopefully it's not the case so we have removed it */
+						System.out.format(
+								"listener %d removed %d from channel '%s'\n",
+								myID, oldestId, channel);
 						oldestId++;
 					}
 				} else {
-					// we just remove the oldest one, maybe we can look at the
-					// next one
+					/*
+					 * TODO: the only difference with the if part is that I know
+					 * that the oldest message has already been read by everyone
+					 * so maybe they should merge.
+					 */
+					// we just remove the oldest one
+					msgInfo = t.get(oldestMsgRequest);
 					oldestId++;
+					System.out.format(
+							"listener %d removed %d from channel '%s'\n", myID,
+							oldestId, channel);
 				}
 				// update channel state after potential removal
 				channelState[2] = String
@@ -134,9 +150,6 @@ public class ChatListener {
 				channelState[5] = String.valueOf(oldestId);
 				t.put(channelState);
 			}
-		} else {
-			/* Not much has changed, except that myId has read this msg. */
-			t.put(msgInfo);
 		}
 		lastRead = msgId;
 		System.out.format(
@@ -167,10 +180,12 @@ public class ChatListener {
 			msgInfo[3] = String.valueOf(Integer.valueOf(msgInfo[3]) - 1);
 			t.put(msgInfo);
 		}
+
+		channelState[1] = String.valueOf(Integer.valueOf(channelState[1]) - 1);
+		t.put(channelState);
 		System.out.format("listener %d is leaving '%s' after reading %d\n",
 				myID, channel, lastRead);
-		channelState[1] = String.valueOf(Integer.valueOf(channelState[1]) - 1);
 		ChatServer.channelState(channelState);
-		t.put(channelState);
+		// Thread.currentThread().interrupt();
 	}
 }

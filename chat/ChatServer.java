@@ -50,6 +50,9 @@ public class ChatServer {
 		String[] channelState = t.get(new String[] { channel, null, null, null,
 				null, null });
 		boolean full = !Boolean.valueOf(channelState[2]);
+		System.out.format("Want to write '%s' to channel '%s' and got it:\n", message,
+				channel);
+		channelState(channelState);
 		if (full && !tryToRemoveOldestMessage(t, rows, channelState)) {
 			t.put(channelState);
 			channelState = t.get(new String[] { channel, null, "true", null,
@@ -96,7 +99,7 @@ public class ChatServer {
 		final String channel = channelState[0];
 		final int lastWrittenId = Integer.parseInt(channelState[4]);
 		int oldestId = Integer.parseInt(channelState[5]);
-		System.out.println("try to remove " + oldestId);
+		System.out.format("writer try to remove %d from '%s'\n", oldestId, channel);
 		final String[] msgInfo = t.get(new String[] { channel + "_msg",
 				String.valueOf(oldestId), null, null });
 		final int unreadCount = Integer.valueOf(msgInfo[3]);

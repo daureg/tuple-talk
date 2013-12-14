@@ -1,5 +1,7 @@
 package tuplespaces;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -44,7 +46,14 @@ public class LocalTupleSpace implements TupleSpace {
 					// Restore the interrupted status
 					// http://www.ibm.com/developerworks/java/library/j-jtp05236/
 					Thread.currentThread().interrupt();
+//					ThreadInfo[] threads = ManagementFactory.getThreadMXBean()
+//					        .dumpAllThreads(true, true);
+//					for(final ThreadInfo info : threads)
+//					    System.out.print(info);
+//					System.exit(1);
+//					System.out.println("Hopefully if you read this, that's because someone is leaving a channel");
 //					e.printStackTrace();
+//					return null;
 				}
 			} while (matched == null);
 		}
