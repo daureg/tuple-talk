@@ -1,7 +1,5 @@
 package tuplespaces;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -14,24 +12,40 @@ public class LocalTupleSpace implements TupleSpace {
 		hashes = new ArrayList<int[]>(100);
 	}
 
-	public String[] find(boolean remove, String... pattern) {
-		String[] matched = null;
+	/*
+	 * Return of an array of hashCode of every non-null element of pattern (and
+	 * -1 otherwise)
+	 */
+	private int[] buildHash(String[] pattern) {
 		int[] hash = new int[pattern.length];
 		for (int i = 0; i < pattern.length; i++) {
 			hash[i] = pattern[i] == null ? -1
 					: (pattern[i].hashCode() & 0x7FFFFFFF);
 		}
+		return hash;
+	}
+
+	public String[] find(boolean remove, String... pattern) {
+		String[] matched = null;
+		int[] hash = buildHash(pattern);
 		synchronized (tuples) {
 			do {
+				/* We iterate simultaneously on tuples and their hashes. */
 				Iterator<int[]> it_hash = hashes.iterator();
 				for (Iterator<String[]> it_tuple = tuples.iterator(); it_tuple
 						.hasNext();) {
 					String[] tuple = (String[]) it_tuple.next();
 					int[] tuple_hash = (int[]) it_hash.next();
-//					if (match(tuple_hash, hash)) {
-					if (match(tuple_hash, hash) && matchStr(tuple, pattern)) {
-						// if (matchStr(tuple, pattern)) {
+					/*
+					 * if hashes match, we also check string themselves to avoid
+					 * collision
+					 */
+					if (matchHash(tuple_hash, hash) && matchStr(tuple, pattern)) {
 						matched = tuple.clone();
+						/*
+						 * the only difference between read and get is that in
+						 * later case, we remove the tuple and its hash.
+						 */
 						if (remove) {
 							it_tuple.remove();
 							it_hash.remove();
@@ -43,23 +57,21 @@ public class LocalTupleSpace implements TupleSpace {
 					if (matched == null)
 						tuples.wait();
 				} catch (InterruptedException e) {
-					// Restore the interrupted status
-					// http://www.ibm.com/developerworks/java/library/j-jtp05236/
-					Thread.currentThread().interrupt();
-//					ThreadInfo[] threads = ManagementFactory.getThreadMXBean()
-//					        .dumpAllThreads(true, true);
-//					for(final ThreadInfo info : threads)
-//					    System.out.print(info);
-//					System.exit(1);
-//					System.out.println("Hopefully if you read this, that's because someone is leaving a channel");
-//					e.printStackTrace();
-//					return null;
+					/*
+					 * In ChatListener.closeConnection(), it would be convenient
+					 * to interrupt the thread and for instance return null here
+					 * to avoid being block in a get call during getNextMessage.
+					 * But according to the spec, we must only return valid
+					 * tuple.
+					 */
+					// return null;
 				}
 			} while (matched == null);
 		}
 		return matched;
 	}
 
+	/* true if tuple[] and pattern[] are equal in non-null position of pattern */
 	private boolean matchStr(String[] tuple, String[] pattern) {
 		if (tuple.length != pattern.length) {
 			return false;
@@ -72,7 +84,8 @@ public class LocalTupleSpace implements TupleSpace {
 		return true;
 	}
 
-	private boolean match(int[] tuple, int[] pattern) {
+	/* Same as above but for hashCode and -1 instead of null */
+	private boolean matchHash(int[] tuple, int[] pattern) {
 		if (tuple.length != pattern.length) {
 			return false;
 		}
@@ -93,12 +106,12 @@ public class LocalTupleSpace implements TupleSpace {
 	}
 
 	public void put(String... tuple) {
+		/*
+		 * There's no explicit synchronization over hashes as it's always use in
+		 * conjunction with tuples.
+		 */
 		synchronized (tuples) {
-			int[] hash = new int[tuple.length];
-			for (int i = 0; i < tuple.length; i++) {
-				hash[i] = tuple[i] == null ? -1
-						: (tuple[i].hashCode() & 0x7FFFFFFF);
-			}
+			int[] hash = buildHash(tuple);
 			tuples.add(tuple.clone());
 			hashes.add(hash.clone());
 			hash = null;
